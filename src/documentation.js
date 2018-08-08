@@ -7,6 +7,9 @@ const DocumentedMember = require('./types/member');
 const DocumentedFunction = require('./types/function');
 const DocumentedEvent = require('./types/event');
 const DocumentedExternal = require('./types/external');
+const DocumentedVarType = require('./types/var-type');
+const ReferencedExternal = require('./types/ref-external');
+const STDLIB = require('./stdlib.json');
 const version = require('../package').version;
 
 /**
@@ -20,7 +23,7 @@ class Documentation {
 			typedef: [DocumentedTypeDef, 'typedefs'],
 			external: [DocumentedExternal, 'externals']
 		};
-
+		this.referencedExternals = new Map();
 		this.childTypes = {
 			'constructor': DocumentedConstructor, // eslint-disable-line quote-props
 			member: DocumentedMember,
@@ -47,6 +50,50 @@ class Documentation {
 		}
 	}
 
+	registerReferencedExternals(items) {
+		const parseNames = names => {
+			for(const name of names) {
+				DocumentedVarType.splitVarName(name).forEach(
+					n => {
+						n = n[0];
+						for(const rootType in this.rootTypes) {
+							if(this[this.rootTypes[rootType][1]].has(n)) return;
+						}
+						if(this.referencedExternals.has(n)) return;
+						if(!STDLIB.hasOwnProperty(n)) return;
+						this.referencedExternals.set(n, new ReferencedExternal(this, [n, STDLIB[n]]));
+					}
+				);
+			}
+		};
+		for(const rootType in this.rootTypes) {
+			for(const [, root] of this[this.rootTypes[rootType][1]]) {
+				console.log(root.type);
+				if(root.directData.augments) {
+					parseNames(root.directData.augments);
+				}
+				if(root.directData.implements) {
+					parseNames(root.directData.implements);
+				}
+			}
+		}
+		for(const item of items) {
+			if(item.type) {
+				parseNames(item.type.names);
+			}
+			if(item.params) {
+				for(const param of item.params) {
+					parseNames(param.type.names);
+				}
+			}
+			if(item.returns) {
+				for(const returnObj of item.returns) {
+					parseNames(returnObj.type.names);
+				}
+			}
+		}
+	}
+
 	findParent(item) {
 		if(this.childTypes[item.kind]) {
 			for(const type in this.rootTypes) {
@@ -60,7 +107,7 @@ class Documentation {
 
 	parse(items) {
 		this.registerRoots(items);
-
+		this.registerReferencedExternals(items);
 		for(const member of items) {
 			let item;
 			if(this.childTypes[member.kind]) item = new this.childTypes[member.kind](this, member);
@@ -107,6 +154,7 @@ class Documentation {
 			const key = this.rootTypes[type][1];
 			serialized[key] = Array.from(this[key].values()).map(i => i.serialize());
 		}
+		serialized.referencedExternals = Array.from(this.referencedExternals.values()).map(i => i.serialize());
 
 		return serialized;
 	}

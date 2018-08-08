@@ -1,7 +1,8 @@
-class DocumentedItem {
+const Serializable = require('../serializable');
+
+class DocumentedItem extends Serializable {
 	constructor(parent, info) {
-		this.parent = parent;
-		this.directData = null;
+		super(parent);
 
 		try {
 			this.registerMetaInfo(info);
@@ -11,26 +12,8 @@ class DocumentedItem {
 		}
 	}
 
-	serialize() {
-		try {
-			return this.serializer();
-		} catch(err) {
-			err.message = `Error while serializing ${this.detailedName(this.directData)}: ${err.message}`;
-			throw err;
-		}
-	}
-
-	/* eslint-disable no-empty-function */
+	// eslint-disable-next-line no-empty-function
 	registerMetaInfo() {}
-	serializer() {}
-	/* eslint-enable no-empty-function */
-
-	detailedName(data) {
-		if(!data) return this.constructor.name;
-		if(data.id) return `${data.id} (${this.constructor.name})`;
-		if(data.name) return `${data.name} (${this.constructor.name})`;
-		return this.constructor.name;
-	}
 }
 
 module.exports = DocumentedItem;
